@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Node.js
+node_modules/
+dist/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local database and uploaded images
+backend/visionai.db
+backend/uploads/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
+# Large trained model — host separately for deployment
+models/*.pth
