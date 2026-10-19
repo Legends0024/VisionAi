@@ -1,4 +1,3 @@
-
 import json
 import re
 import sqlite3
@@ -14,10 +13,7 @@ from PIL import Image, UnidentifiedImageError
 from app.model import predict_image
 
 
-# --------------------------------------------------
 # Paths and configuration
-# --------------------------------------------------
-
 BASE_DIR = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = BASE_DIR / "backend" / "uploads"
 DB_PATH = BASE_DIR / "backend" / "visionai.db"
@@ -26,11 +22,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-ALLOWED_FORMATS = {
-    "JPEG": ".jpg",
-    "PNG": ".png",
-    "WEBP": ".webp",
-}
+ALLOWED_FORMATS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
 
 app = FastAPI(
     title="VisionAI API",
@@ -43,24 +35,18 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://visionai-frontend-ybxa.onrender.com",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Uploaded images are intentionally served as static files for this local demo.
-app.mount(
-    "/uploads",
-    StaticFiles(directory=str(UPLOAD_DIR)),
-    name="uploads",
-)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
-# --------------------------------------------------
 # Database
-# --------------------------------------------------
-
 def get_connection():
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
@@ -89,16 +75,12 @@ def init_db():
         # Migrate databases created by earlier versions.
         columns = {
             row["name"]
-            for row in connection.execute(
-                "PRAGMA table_info(predictions)"
-            ).fetchall()
+            for row in connection.execute("PRAGMA table_info(predictions)").fetchall()
         }
-
         migrations = {
             "top5": "ALTER TABLE predictions ADD COLUMN top5 TEXT NOT NULL DEFAULT '[]'",
             "image_url": "ALTER TABLE predictions ADD COLUMN image_url TEXT",
         }
-
         for column, statement in migrations.items():
             if column not in columns:
                 connection.execute(statement)
@@ -107,18 +89,13 @@ def init_db():
 init_db()
 
 
-# --------------------------------------------------
 # Helpers
-# --------------------------------------------------
-
 def serialize_prediction(row):
     item = dict(row)
-
     try:
         item["top5"] = json.loads(item.get("top5") or "[]")
     except (json.JSONDecodeError, TypeError):
         item["top5"] = []
-
     return item
 
 
@@ -131,15 +108,10 @@ def safe_filename(original_name):
 
 async def read_and_validate_image(file: UploadFile):
     content = await file.read(MAX_UPLOAD_BYTES + 1)
-
     if not content:
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
-
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail="Image exceeds the 10 MB upload limit.",
-        )
+        raise HTTPException(status_code=413, detail="Image exceeds the 10 MB upload limit.")
 
     try:
         from io import BytesIO
@@ -157,7 +129,6 @@ async def read_and_validate_image(file: UploadFile):
 
         with Image.open(BytesIO(content)) as source:
             image = source.convert("RGB")
-
         return content, image, ALLOWED_FORMATS[image_format]
 
     except HTTPException:
@@ -169,10 +140,7 @@ async def read_and_validate_image(file: UploadFile):
         )
 
 
-# --------------------------------------------------
 # Routes
-# --------------------------------------------------
-
 @app.get("/")
 def root():
     return {
@@ -200,19 +168,16 @@ async def create_prediction(file: UploadFile = File(...)):
     try:
         # Run the model before saving the permanent record.
         result = predict_image(image)
-
         predicted_class = str(result["predicted_class"])
         confidence = float(result["confidence"])
         confidence_percent = float(result["confidence_percent"])
         inference_ms = result.get("inference_ms")
         device = result.get("device")
         top5 = result.get("top5", [])
-
         if not isinstance(top5, list):
             top5 = []
 
         created_at = datetime.now(timezone.utc).isoformat()
-
         # Store the original image bytes on disk.
         stored_path.write_bytes(content)
 
@@ -220,15 +185,8 @@ async def create_prediction(file: UploadFile = File(...)):
             cursor = connection.execute(
                 """
                 INSERT INTO predictions (
-                    filename,
-                    predicted_class,
-                    confidence,
-                    confidence_percent,
-                    inference_ms,
-                    device,
-                    created_at,
-                    top5,
-                    image_url
+                    filename, predicted_class, confidence, confidence_percent,
+                    inference_ms, device, created_at, top5, image_url
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -275,21 +233,18 @@ async def create_prediction(file: UploadFile = File(...)):
 @app.get("/history")
 def get_history(limit: int = 10):
     limit = max(1, min(limit, 100))
-
     with get_connection() as connection:
         rows = connection.execute(
             """
-            SELECT
-                id, filename, predicted_class, confidence,
-                confidence_percent, inference_ms, device,
-                created_at, top5, image_url
+            SELECT id, filename, predicted_class, confidence,
+                   confidence_percent, inference_ms, device,
+                   created_at, top5, image_url
             FROM predictions
             ORDER BY id DESC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
-
     return [serialize_prediction(row) for row in rows]
 
 
@@ -300,21 +255,15 @@ def delete_prediction(prediction_id: int):
             "SELECT image_url FROM predictions WHERE id = ?",
             (prediction_id,),
         ).fetchone()
-
         if row is None:
             raise HTTPException(status_code=404, detail="Prediction not found.")
-
-        connection.execute(
-            "DELETE FROM predictions WHERE id = ?",
-            (prediction_id,),
-        )
+        connection.execute("DELETE FROM predictions WHERE id = ?", (prediction_id,))
 
     # Delete only files stored inside our uploads directory.
     image_url = row["image_url"]
     if image_url and image_url.startswith("/uploads/"):
         stored_name = image_url.removeprefix("/uploads/")
         candidate = (UPLOAD_DIR / stored_name).resolve()
-
         if candidate.parent == UPLOAD_DIR.resolve() and candidate.is_file():
             candidate.unlink()
 
@@ -330,5 +279,4 @@ def clear_history():
     for path in UPLOAD_DIR.iterdir():
         if path.is_file():
             path.unlink()
-
     return {"message": "Prediction history cleared"}
