@@ -18,6 +18,24 @@ A full-stack computer vision application built with **PyTorch, ResNet-50, FastAP
 - Image validation and a 10 MB upload limit.
 - Cloud deployment using Render.
 
+## ⚠️ Model Limitations
+
+VisionAI is trained on the **CIFAR-10 dataset** and supports only these 10 image classes:
+
+- ✈️ Airplane
+- 🚗 Automobile
+- 🐦 Bird
+- 🐱 Cat
+- 🦌 Deer
+- 🐕 Dog
+- 🐸 Frog
+- 🐎 Horse
+- 🚢 Ship
+- 🚚 Truck
+
+**Important:** VisionAI is a 10-class image classification system, not a general-purpose object detector. Images containing unsupported objects—such as people, phones, food, or buildings—may receive incorrect predictions because the model must choose among its available classes. Prediction confidence does not guarantee correctness.
+
+
 ## 🛠️ Tech Stack
 
 - **Frontend:** React, TypeScript, Vite
